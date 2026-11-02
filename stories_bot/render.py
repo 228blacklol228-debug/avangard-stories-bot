@@ -52,8 +52,8 @@ class Renderer:
         validate_draft(draft,project)
         out.mkdir(parents=True,exist_ok=True)
         assets={a['id']:a for a in project['assets']}
-        heading=Path(brand.get('heading_font') or ASSETS/'fonts/ariblk.ttf')
-        bodypath=Path(brand.get('body_font') or ASSETS/'fonts/arial.ttf')
+        heading=Path(brand.get('heading_font') or ASSETS/'fonts/Montserrat-Black.ttf')
+        bodypath=Path(brand.get('body_font') or ASSETS/'fonts/Montserrat-Regular.ttf')
         ink=brand.get('ink','#001b19');yellow=brand.get('accent','#ffcc0f')
         paths=[]
         for idx,s in enumerate(draft.slides):
@@ -130,7 +130,7 @@ def contact_sheet(project):
     assets=project['assets'];cw,ch=450,300
     rows=(len(assets)+1)//2
     im=Image.new('RGB',(cw*2,ch*rows),'white');d=ImageDraw.Draw(im)
-    face=font(ASSETS/'fonts/arial.ttf',22)
+    face=font(ASSETS/'fonts/Montserrat-Regular.ttf',22)
     for i,a in enumerate(assets):
         with Image.open(a['path']) as img:
             img=img.convert('RGB');img.thumbnail((cw-12,ch-38))

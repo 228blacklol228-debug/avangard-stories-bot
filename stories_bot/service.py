@@ -51,8 +51,8 @@ class Service:
         self.default=json.loads((ROOT/'assets/brand.json').read_text(encoding='utf-8'))
         self.default['source']=config.source
         self.default['logo']=str(ROOT/'assets/logo.png')
-        self.default['heading_font']=str(ROOT/'assets/fonts/ariblk.ttf')
-        self.default['body_font']=str(ROOT/'assets/fonts/arial.ttf')
+        self.default['heading_font']=str(ROOT/'assets/fonts/Montserrat-Black.ttf')
+        self.default['body_font']=str(ROOT/'assets/fonts/Montserrat-Regular.ttf')
         self.default['references']=[str(ROOT/'assets/reference.png')]
 
     async def admin(self,message):
