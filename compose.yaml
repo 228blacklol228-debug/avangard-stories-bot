@@ -1,0 +1,27 @@
+services:
+  bot:
+    build: .
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      - bot-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m
+    mem_limit: 768m
+    cpus: 1.5
+    pids_limit: 96
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+volumes:
+  bot-data:

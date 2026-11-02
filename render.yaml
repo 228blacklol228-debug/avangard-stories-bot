@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: avangardstories-bot
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile.render
+    dockerContext: .
+    dockerCommand: python -m stories_bot.webhook
+    healthCheckPath: /health
+    envVars:
+      - key: DATA_DIR
+        value: /tmp/stories-bot
+      - key: AUTO_SET_WEBHOOK
+        value: '1'
+      - key: BOT_USERNAME
+        value: avangardstories_bot
+      - key: BOT_INSTANCE_KEY
+        value: avangardstories
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OWNER_TELEGRAM_ID
+        value: '0'
+      - key: OPENAI_MODEL
+        value: gpt-5-mini
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: stories-originals
+      - key: MAX_DAILY_JOBS_PER_CHAT
+        value: '10'

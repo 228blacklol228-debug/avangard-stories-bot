@@ -1,0 +1,10 @@
+FROM python:3.13-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DATA_DIR=/tmp/stories-bot
+WORKDIR /app
+COPY requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock && \
+    groupadd -g 10001 bot && useradd -u 10001 -g bot -M bot
+COPY --chown=bot:bot stories_bot ./stories_bot
+COPY --chown=bot:bot assets ./assets
+USER bot
+CMD ["python", "-m", "stories_bot.webhook"]
