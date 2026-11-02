@@ -13,9 +13,18 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from stories_bot.cloud import Cloud,snapshot,restore_snapshot
 from stories_bot.config import Config,UserError
 from stories_bot.store import Store
-from stories_bot.webhook import actionable,create_app
+from stories_bot.webhook import actionable,create_app,webhook_secret,configure_webhook
+from stories_bot.telegram import Telegram
+import re
 
 class SnapshotTests(unittest.TestCase):
+    def test_generated_secret_is_telegram_compatible_and_stable(self):
+        raw='a'*32+'+/= '+'я'
+        result=webhook_secret(raw)
+        self.assertRegex(result,r'^[A-Za-z0-9_-]{32,256}$')
+        self.assertEqual(result,webhook_secret(raw))
+        self.assertNotEqual(result,webhook_secret(raw+'different'))
+        self.assertEqual(webhook_secret('safe-secret_'*4),'safe-secret_'*4)
     def test_checkpoint_survives_total_loss_of_working_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);s=Store(root/'before.sqlite')
@@ -68,6 +77,31 @@ class FilesTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(path.exists())
 
 class WebhookTests(unittest.IsolatedAsyncioTestCase):
+    async def test_registration_accepts_hosting_secret_without_openai_key(self):
+        self.cfg=Config('token','','model',42,'https://old.avgst.ru',frozenset({'old.avgst.ru'}),Path(self.tmp.name))
+        raw='x'*32+'+/='
+        app=create_app(self.cfg,self.cloud,raw)
+        def respond(request):
+            payload=json.loads(request.content)
+            if request.url.path.endswith('/getWebhookInfo'):
+                return httpx.Response(200,json={'ok':True,'result':{'url':''}})
+            if not re.fullmatch(r'[A-Za-z0-9_-]{1,256}',payload['secret_token']):
+                return httpx.Response(400,json={'ok':False,'error_code':400,'description':'Bad Request: secret token contains invalid characters'})
+            self.assertEqual(payload['secret_token'],app['secret'])
+            self.assertFalse(payload['drop_pending_updates'])
+            return httpx.Response(200,json={'ok':True,'result':True})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            await configure_webhook(Telegram(client,'token'),'https://example.onrender.com',app['secret'])
+    async def test_receiver_uses_same_derived_secret_as_registration(self):
+        raw='x'*32+'+/='
+        app=create_app(self.cfg,self.cloud,raw)
+        client=TestClient(TestServer(app));await client.start_server()
+        try:
+            r=await client.post('/telegram',json=self.payload(),headers={'X-Telegram-Bot-Api-Secret-Token':webhook_secret(raw)})
+            self.assertEqual(r.status,200)
+            r=await client.post('/telegram',json=self.payload(),headers={'X-Telegram-Bot-Api-Secret-Token':raw})
+            self.assertEqual(r.status,403)
+        finally:await client.close()
     async def asyncSetUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.secret='s'*40
         self.cfg=Config('token','key','model',42,'https://old.avgst.ru',frozenset({'old.avgst.ru'}),Path(self.tmp.name))

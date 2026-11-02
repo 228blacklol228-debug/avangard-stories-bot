@@ -2,9 +2,11 @@
 import asyncio
 from contextlib import suppress
 import hmac
+import hashlib
 import json
 import logging
 import os
+import re
 from pathlib import Path
 import tempfile
 import uuid
@@ -104,8 +106,15 @@ async def worker(app):
             log.warning('Cloud worker retry: %s',type(e).__name__)
             await asyncio.sleep(10)
 
-def create_app(config,cloud,secret,username='avangardstories_bot'):
+def webhook_secret(secret):
     if len(secret)<32:raise UserError('WEBHOOK_SECRET должен содержать не менее 32 символов.')
+    # Hosting-generated secrets can contain +, / or =. Telegram permits only
+    # A-Z, a-z, 0-9, _ and -. Derive a stable secret without changing entropy.
+    if re.fullmatch(r'[A-Za-z0-9_-]{32,256}',secret):return secret
+    return hashlib.sha256(secret.encode('utf-8')).hexdigest()
+
+def create_app(config,cloud,secret,username='avangardstories_bot'):
+    secret=webhook_secret(secret)
     app=web.Application(client_max_size=256*1024)
     app['config']=config;app['cloud']=cloud;app['secret']=secret;app['username']=username
     app['wake']=asyncio.Event()
@@ -113,6 +122,14 @@ def create_app(config,cloud,secret,username='avangardstories_bot'):
     async def health(request):return web.json_response({'status':'ok'})
     app.router.add_get('/health',health)
     return app
+
+async def configure_webhook(tg,public,secret):
+    desired=public.rstrip('/')+'/telegram'
+    current=await tg.call('getWebhookInfo')
+    if current.get('url') and current['url']!=desired:
+        raise UserError('У бота уже другой webhook. Отключите старое размещение перед переносом.')
+    await tg.call('setWebhook',{'url':desired,'secret_token':secret,
+                              'allowed_updates':['message'],'max_connections':1,'drop_pending_updates':False})
 
 async def runtime(app):
     cfg=app['config']
@@ -122,12 +139,7 @@ async def runtime(app):
         if not public.startswith('https://'):raise UserError('Нужен PUBLIC_URL — HTTPS-адрес веб-сервиса Render.')
         # Setting AUTO_SET_WEBHOOK=1 explicitly authorizes connecting this deployment.
         if os.getenv('AUTO_SET_WEBHOOK','0')=='1':
-            desired=public.rstrip('/')+'/telegram'
-            current=await app['tg'].call('getWebhookInfo')
-            if current.get('url') and current['url']!=desired:
-                raise UserError('У бота уже другой webhook. Отключите старое размещение перед переносом.')
-            await app['tg'].call('setWebhook',{'url':desired,'secret_token':app['secret'],
-                                              'allowed_updates':['message'],'max_connections':1,'drop_pending_updates':False})
+            await configure_webhook(app['tg'],public,app['secret'])
         task=asyncio.create_task(worker(app))
         try:yield
         finally:

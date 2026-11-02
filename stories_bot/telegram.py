@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from contextlib import ExitStack
 from pathlib import Path
 from urllib.parse import quote
@@ -24,7 +25,14 @@ class Telegram:
             if data.get('ok'):return data['result']
             if data.get('error_code')==429 and attempt<2:
                 await asyncio.sleep(min(data.get('parameters',{}).get('retry_after',2),45));continue
-            raise UserError(f'Telegram не выполнил действие (код {data.get("error_code",r.status_code)}). Проверьте права бота в чате.')
+            message=f'Telegram не выполнил {method} (код {data.get("error_code",r.status_code)}).'
+            if method in ('setWebhook','getWebhookInfo','getMe'):
+                detail=str(data.get('description',''))
+                for secret in (self.token,(payload or {}).get('secret_token')):
+                    if secret:detail=detail.replace(str(secret),'[скрыто]')
+                detail=re.sub(r'https?://\S+','[адрес]',detail)
+                message+=' '+detail[:400]
+            raise UserError(message)
         raise UserError('Telegram временно ограничил отправку. Попробуйте позже.')
 
     async def say(self,chat,text,topic=0,reply=None):

@@ -150,6 +150,16 @@ class FakeTelegram:
     async def document(self,*a,**kw):self.counter+=1;return {'message_id':self.counter}
 
 class TelegramTests(unittest.IsolatedAsyncioTestCase):
+    async def test_setup_errors_include_reason_but_never_credentials(self):
+        token='private-token';secret='private-secret'
+        def respond(request):
+            return httpx.Response(400,json={'ok':False,'error_code':400,
+                'description':f'Bad Request: secret token contains invalid characters: {secret}; {token}; https://host/{token}'})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            with self.assertRaises(UserError) as e:
+                await Telegram(client,token).call('setWebhook',{'secret_token':secret})
+            self.assertIn('secret token contains invalid characters',str(e.exception))
+            self.assertNotIn(token,str(e.exception));self.assertNotIn(secret,str(e.exception))
     async def test_rate_limited_upload_rewinds_file(self):
         bodies=[]
         def respond(request):
